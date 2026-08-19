@@ -1,5 +1,5 @@
 import { buildZip, detectLang, countLines } from '../lib/host/parse.mjs'
-import { saveFile, listFiles, setModified, setReport } from '../lib/host/store.mjs'
+import { saveFile, listFiles, setModified, setReport, addManualVersion, rollbackTo, getVersion } from '../lib/host/store.mjs'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -17,10 +17,16 @@ const zipPath = join(outDir, 'test.zip')
 writeFileSync(zipPath, zip)
 console.log('zip bytes =', zip.length, '->', zipPath)
 
-// --- store ---
-const a = saveFile({ name: 'app.py', lang: detectLang('app.py'), size: 10, lines: countLines('a\nb'), content: 'a\nb' })
-const b = saveFile({ name: 'u.js', lang: detectLang('u.js'), size: 3, lines: 1, content: 'x' })
+// --- store 版本化 ---
+const a = saveFile({ name: 'app.py', lang: detectLang('app.py'), size: 10, lines: 2, content: 'a\nb' })
+saveFile({ name: 'u.js', lang: detectLang('u.js'), size: 3, lines: 1, content: 'x' })
 setModified(a.id, 'A\nB\nC')
 setReport(a.id, '# report')
-console.log('store files =', listFiles().length, '| a.modified =', JSON.stringify(listFiles()[0].modifiedContent))
+addManualVersion(a.id, 'A\nB\nC\nD')
+rollbackTo(a.id, 1)
+const fa = listFiles().find((f) => f.id === a.id)
+console.log('versions =', fa.versions.map((v) => v.v + ':' + v.source).join(', '))
+console.log('current =', fa.current, '| modifiedContent =', JSON.stringify(fa.modifiedContent))
+console.log('getVersion(2) =', JSON.stringify(getVersion(a.id, 2)?.content))
+console.log('listFiles =', listFiles().length)
 console.log('SMOKE OK')

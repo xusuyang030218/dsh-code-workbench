@@ -12,3 +12,6 @@ Thumbs.db
 # 本地临时
 *.tmp
 .tmp/
+
+# Trae 工具产物（与 outputs/ 下的设计文档重复）
+.trae-html-share-packages/

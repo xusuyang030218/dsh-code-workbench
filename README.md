@@ -12,22 +12,27 @@ DSH 代码工作台插件：在输入栏添加「💻 代码」按钮，用户�
 | 功能 | 描述 |
 |------|------|
 | 代码上传 | 多选/多拖代码文件（.py/.js/.ts/.java/.go/.rs/.c/.cpp/.html/.css/.sql/.sh 等） |
-| 语法高亮预览 | 上传后逐文件显示带语法高亮的代码预览 |
-| AI 修改指令 | 操作类型：优化 / 重构 / 审查 / 修Bug / 加注释 / 加测试 / 转语言 |
-| Diff 差异视图 | 原始代码 vs 修改后代码逐行对比（新增绿 / 删除红 / 修改黄 / 未变灰） |
-| 下载 | 单文件下载 + 多文件打包 .zip 下载 |
-| 评测报告 | AI 生成结构化代码评测报告（评分 / 问题 / 建议） |
+| 粘贴代码 | 不必落成文件，「+ 粘贴代码」直接建文件参与处理（N1） |
+| 勾选圈定 | 文件级 checkbox 决定提交范围，提交按钮实时显示「提交 · N 个文件」（N2） |
+| 语法高亮预览 | 源码视图带行号 + 语法高亮（关键字/字符串/注释/数字/函数名/HTML 标签） |
+| AI 修改指令 | 操作类型：审查 / 修Bug / 重构 / 性能 / 注释 / 测试 / 转语言 |
+| Diff 双模式 | 统一 / 并排切换 + 词级高亮 + 未变更行折叠 + `+N −N` 统计徽章（N5） |
+| 版本历史 | 每次修改追加版本记录（AI / 手动编辑 / 回滚），任意两版对比、回滚、下载（N4） |
+| 源码可编辑 | 编辑态 textarea 叠加高亮层，保存生成新版本（N3） |
+| 评测报告 | AI 生成 Markdown 评测报告，面板内 mini 渲染（N7） |
+| 下载 | 单文件（可指定版本）+ 按勾选打包 .zip（N8） |
+| 交互 | 快捷键（⌘⏎ 提交 / Esc 关闭 / ⌘F 搜索）、面板最大化、轻量元数据轮询（N9-N11） |
 | 历史记录 | 本次会话内所有上传 + 修改记录可回看（内存存储，不持久化） |
 
 ## 使用流程
 
-1. 点击输入栏「💻 代码」按钮 → 弹出代码工作台面板
-2. 拖入/选择代码文件（支持多选）→ 逐文件解析 + 语法高亮预览
-3. 选择操作类型（优化 / 重构 / 审查 / 修Bug / 加注释 / 加测试 / 转语言）
-4. 可选补充具体要求
-5. 点击「提交给 AI」→ AI 经 `code_workbench` 工具读取/修改/评测
-6. 面板自动刷新，在「修改后代码 / Diff 差异 / 评测报告」三个 Tab 中查看结果
-7. 下载单个文件，或「全部下载(.zip)」打包下载
+1. 点击输入栏「💻 代码」按钮 → 弹出 v3 三区工作台（顶栏 / 文件栏 / 编辑区 / 命令栏）
+2. 拖入/选择代码文件，或「+ 粘贴代码」直接粘贴（支持多选）
+3. 勾选要参与的文件（未勾选的不进入提交指令）
+4. 在命令栏选择操作类型，可选补充要求
+5. 「⌘⏎ 提交 · N 个文件」→ AI 经 `code_workbench` 工具读取/修改/评测
+6. 面板轻量轮询，完成后在「源码 / Diff / 报告 / 历史」四视图中查看结果
+7. 不满意可「编辑」手动微调保存为新版本、回滚到任意历史版本、按勾选打包下载
 
 ## 架构
 
@@ -38,7 +43,7 @@ lib/
     index.mjs            host 工具半：code_workbench 工具 + 系统提示
     web.mjs              web 路由半：上传 / 列表 / 单文件下载 / 打包下载
     parse.mjs            语言检测 + 行数 + 文本解码 + ZIP 打包（node:zlib）
-    store.mjs            内存存储（进程内 Map，不落盘）
+    store.mjs            内存存储 + 版本历史（进程内 Map，不落盘）
 cordis.patch.yml         两行 host 半注册
 ```
 
@@ -58,9 +63,13 @@ cordis.patch.yml         两行 host 半注册
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/dsh-code-workbench/upload` | 上传单个代码文件（原始字节 + `x-file-name`） |
-| GET | `/dsh-code-workbench/list` | 当前会话全部文件 + 修改/评测状态 |
-| GET | `/dsh-code-workbench/download/:fileId` | 下载单个文件（有修改结果则下载修改后代码） |
-| GET | `/dsh-code-workbench/download-all` | 全部文件打包 .zip 下载 |
+| POST | `/dsh-code-workbench/paste` | 粘贴代码建文件（body JSON `{ name, content }`） |
+| PUT | `/dsh-code-workbench/file/:id` | 手动编辑保存（追加 manual 版本） |
+| POST | `/dsh-code-workbench/rollback/:id` | 回滚到指定版本（body `{ to: v }`，追加 rollback 记录） |
+| GET | `/dsh-code-workbench/list?meta=1` | 全量记录 / 轻量轮询元数据（不含大字段） |
+| GET | `/dsh-code-workbench/version/:id/:v` | 读取指定版本内容（历史查看/对比用） |
+| GET | `/dsh-code-workbench/download/:fileId?version=N` | 下载单个文件（指定版本，缺省当前） |
+| GET | `/dsh-code-workbench/download-all?ids=a,b` | 按勾选 id 打包 .zip（缺省全部） |
 
 ## 安装
 

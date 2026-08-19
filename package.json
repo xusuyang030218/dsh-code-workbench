@@ -1,7 +1,7 @@
 {
   "name": "dsh-code-workbench",
-  "version": "0.1.0",
-  "description": "DSH 代码工作台插件：输入栏「💻 代码」按钮 → 上传代码 → AI 修改/优化/审查 → 下载修改后代码 + diff 视图 + 评测报告（code_workbench 工具）。零外部依赖。",
+  "version": "0.2.0",
+  "description": "DSH 代码工作台插件：输入栏「💻 代码」按钮 → 上传/粘贴代码 → AI 修改/优化/审查 → 下载 + diff 双模式 + 版本历史 + 评测报告（code_workbench 工具）。零外部依赖。",
   "type": "module",
   "main": "lib/host/index.mjs",
   "exports": {
