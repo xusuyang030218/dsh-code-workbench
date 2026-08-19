@@ -1,0 +1,52 @@
+{
+  "name": "dsh-code-workbench",
+  "version": "0.1.0",
+  "description": "DSH 代码工作台插件：输入栏「💻 代码」按钮 → 上传代码 → AI 修改/优化/审查 → 下载修改后代码 + diff 视图 + 评测报告（code_workbench 工具）。零外部依赖。",
+  "type": "module",
+  "main": "lib/host/index.mjs",
+  "exports": {
+    ".": "./lib/host/index.mjs",
+    "./web": "./lib/host/web.mjs",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/dsh-host-webserver": "*",
+    "@deepseek-ai/dsh-home-paths": "*",
+    "@deepseek-ai/dsh-client-runtime": "*",
+    "@deepseek-ai/dsh-client-ui-slots": "*"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "plugin",
+    "code",
+    "workbench",
+    "refactor",
+    "review",
+    "diff",
+    "download"
+  ],
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c"
+}

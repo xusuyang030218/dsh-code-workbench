@@ -1,0 +1,10 @@
+# dsh-code-workbench bundle patch：插入两行 host 半。
+#   dsh-code-workbench      host 工具半（main；code_workbench 工具 + 系统提示，任何 profile 可用）
+#   dsh-code-workbench-web  web 上传/下载路由半（./web；依赖 webServer，仅 web profile 激活）
+# 浏览器半（输入栏「💻 代码」按钮 + 工作台面板）由官方 client-modules 扫描 dsh.client
+# 声明后，以 /plugins/dsh-code-workbench/client.js 自动供给浏览器（与 dsh-doc-import 同模型）。
+- insert:
+    - id: dsh-code-workbench
+      name: dsh-code-workbench
+    - id: dsh-code-workbench-web
+      name: 'dsh-code-workbench/web'
