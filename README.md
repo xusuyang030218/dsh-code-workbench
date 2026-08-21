@@ -11,10 +11,10 @@ DSH 代码工作台插件：在输入栏添加「💻 代码」按钮，用户�
 
 | 功能 | 描述 |
 |------|------|
-| 代码上传 | 多选/多拖代码文件（.py/.js/.ts/.java/.go/.rs/.c/.cpp/.html/.css/.sql/.sh 等） |
-| 选择文件夹 | 「📁 文件夹」递归添加目录内代码文件，保留相对路径（zip 下载保留子目录） |
+| 代码上传 | 多选/多拖代码文件 + 文件夹递归导入（自动过滤 `.git`/`node_modules`/二进制/资源文件） |
 | 粘贴代码 | 不必落成文件，「＋粘贴」直接建文件参与处理（N1） |
 | 勾选圈定 | 文件级 checkbox 决定提交范围，提交按钮实时显示「提交 · N 个文件」（N2） |
+| AI 直连 | 面板底部直连 DeepSeek 等已配置 API（可选模型），直接对话或「修改选中」写回版本 |
 | 语法高亮预览 | 源码视图带行号 + 语法高亮（关键字/字符串/注释/数字/函数名/HTML 标签） |
 | AI 修改指令 | 操作类型：审查 / 修Bug / 重构 / 性能 / 注释 / 测试 / 转语言 |
 | Diff 双模式 | 统一 / 并排切换 + 词级高亮 + 未变更行折叠 + `+N −N` 统计徽章（N5） |
@@ -22,7 +22,7 @@ DSH 代码工作台插件：在输入栏添加「💻 代码」按钮，用户�
 | 源码可编辑 | 编辑态 textarea 叠加高亮层，保存生成新版本（N3） |
 | 评测报告 | AI 生成 Markdown 评测报告，面板内 mini 渲染（N7） |
 | 下载 | 单文件（可指定版本）+ 按勾选打包 .zip（N8，文件夹文件保留子目录） |
-| 交互 | 快捷键（⌘⏎ 提交 / Esc 关闭 / ⌘F 搜索）、面板最大化、文件栏宽度拖拽（170–340px）、轻量元数据轮询 |
+| 交互 | 快捷键（⌘⏎ 提交 / Esc 关闭 / ⌘F 搜索）、面板最大化、文件栏宽度拖拽、轻量元数据轮询 |
 | 历史记录 | 本次会话内所有上传 + 修改记录可回看（内存存储，不持久化） |
 
 ## 使用流程
@@ -38,13 +38,15 @@ DSH 代码工作台插件：在输入栏添加「💻 代码」按钮，用户�
 ## 架构
 
 ```
-lib/
-  client.js              浏览器半（React 面板 + 自写语法高亮 token 化器 + LCS diff）
+src/                      # TypeScript 源码（tsc 构建 → lib/）
+  client.ts              浏览器半（React 面板 + 自写语法高亮 token 化器 + LCS diff + AI 助手）
   host/
-    index.mjs            host 工具半：code_workbench 工具 + 系统提示
-    web.mjs              web 路由半：上传 / 列表 / 单文件下载 / 打包下载
-    parse.mjs            语言检测 + 行数 + 文本解码 + ZIP 打包（node:zlib）
-    store.mjs            内存存储 + 版本历史（进程内 Map，不落盘）
+    index.ts             host 工具半：code_workbench 工具 + 系统提示
+    web.ts               web 路由半：上传/粘贴/编辑/版本/下载 + AI 直连端点
+    ai.ts                AI 直连：provider 解析（credentials+settings）+ chat/apply
+    parse.ts             语言检测 + 行数 + 文本解码 + 二进制嗅探 + ZIP 打包（node:zlib）
+    store.ts             内存存储 + 版本历史（进程内 Map，不落盘）
+lib/                      tsc 构建产物（随仓库提交，profile 直接运行）
 cordis.patch.yml         两行 host 半注册
 ```
 
@@ -63,21 +65,40 @@ cordis.patch.yml         两行 host 半注册
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/dsh-code-workbench/upload` | 上传单个代码文件（原始字节 + `x-file-name`） |
+| GET | `/dsh-code-workbench/ai/providers` | 可选 AI 接口列表（DeepSeek 官方 + llm-pi-ai 中转，脱敏） |
+| POST | `/dsh-code-workbench/ai/chat` | 面板内直接对话（OpenAI 兼容 chat/completions） |
+| POST | `/dsh-code-workbench/ai/apply` | AI 修改选中文件并写回为新版本（解析 JSON 修改清单） |
+| POST | `/dsh-code-workbench/upload` | 上传单个代码文件（原始字节 + `x-file-name`，二进制自动拒绝） |
 | POST | `/dsh-code-workbench/paste` | 粘贴代码建文件（body JSON `{ name, content }`） |
 | PUT | `/dsh-code-workbench/file/:id` | 手动编辑保存（追加 manual 版本） |
 | POST | `/dsh-code-workbench/rollback/:id` | 回滚到指定版本（body `{ to: v }`，追加 rollback 记录） |
 | GET | `/dsh-code-workbench/list?meta=1` | 全量记录 / 轻量轮询元数据（不含大字段） |
 | GET | `/dsh-code-workbench/version/:id/:v` | 读取指定版本内容（历史查看/对比用） |
 | GET | `/dsh-code-workbench/download/:fileId?version=N` | 下载单个文件（指定版本，缺省当前） |
-| GET | `/dsh-code-workbench/download-all?ids=a,b` | 按勾选 id 打包 .zip（缺省全部） |
+| GET | `/dsh-code-workbench/download-all?ids=a,b` | 按勾选 id 打包 .zip（缺省全部，保留相对路径子目录） |
 
-## 安装
+## AI 直连
+
+面板底部「🤖 AI 助手」直连 DSH 已配置的 LLM 接口，无需经过宿主对话流：
+
+- **接口来源**：DeepSeek 官方（`DEEPSEEK_API_KEY`）+ `settings.yaml` 里 `llm-pi-ai.providers` 配置的中转（codex/claude 等）
+- **API Key**：经 DSH credentials 服务读取（环境变量优先，其次 `$DSH_HOME/.credentials.yaml`），key 只留在 host 端，不下发浏览器
+- **对话**：选择模型直接提问（可勾选「附文件」把选中文件作为上下文）
+- **修改选中**：AI 返回 JSON 修改清单，逐文件写回为新的 `ai` 版本，可继续 diff / 回滚 / 下载
+
+## 安装（v0.3 TypeScript 版）
 
 ```bash
+# 1) 构建（tsc 编译 src/ → lib/，lib/ 已随仓库提交，可跳过）
+cd D:\dsh-code-workbench
+pnpm install          # 装 typescript 等 devDependencies
+pnpm run build
+
+# 2) 注册到 web profile
 cd C:\Users\23074\.dsh\profiles\web
 pnpm add dsh-code-workbench@link:D:\dsh-code-workbench
-# 并在 profiles/web/package.json 的 dsh.profile.bundles 中加入 "dsh-code-workbench"
+#   并在 profiles/web/package.json 的 dsh.profile.bundles 中加入 "dsh-code-workbench"
+#   在 pnpm-workspace.yaml 的 allowBuilds 中加入 "dsh-code-workbench"
 dsh --profile web --dump-config   # 验证加载
 ```
 
